@@ -1,0 +1,13 @@
+coreid,identifiedBy,identifiedByID,dateIdentified,identificationQualifier,scientificName,identificationIsCurrent,scientificNameAuthorship,genus,specificEpithet,taxonRank,infraspecificEpithet,identificationReferences,identificationRemarks,recordID,modified
+892542,"Marcus E. Jones",,1891-05-06,,"Astragalus eastwoodiae",0,"M.E. Jones",,,,,,,urn:uuid:ed47cafd-7838-4323-8002-1dacc0a1c48d,"2012-09-06 15:37:14"
+892543,"Leslie N. Goodding",,1938-07-29,,"Astragalus eastwoodiae",0,"M.E. Jones",,,,,,,urn:uuid:af1e2c68-9a18-4581-9f31-f90194eb04dd,"2012-09-06 15:37:14"
+1553064,,,1948-00-00,,"Astragalus eastwoodiae",0,"M. E. Jones",,,,,,,urn:uuid:d7c6c509-c7dc-43ef-ad59-ab4f214038a1,"2014-10-03 06:18:38"
+1553064,"not specified",,1948-00-00,,"Astragalus eastwoodiae",0,"M. E. Jones",,,,,,,urn:uuid:c53229d3-a37c-4984-b39d-3da8090cc850,"2021-01-07 16:23:24"
+1531355,,,1950-00-00,,"Astragalus eastwoodiae",0,"M. E. Jones",,,,,,,urn:uuid:aa2de360-763e-4008-8237-82f07ec1c47e,"2014-10-03 06:18:38"
+1531355,"not specified",,1950-00-00,,"Astragalus eastwoodiae",0,"M. E. Jones",,,,,,,urn:uuid:4ffea995-6b18-41fc-939f-45e5386e067e,"2021-01-07 16:23:24"
+1538525,,,1950-00-00,,"Astragalus eastwoodiae",0,"M. E. Jones",,,,,,,urn:uuid:a16ec153-462f-4e90-b385-43f6bbc2edc8,"2014-10-03 06:18:38"
+1538525,"not specified",,1950-00-00,,"Astragalus eastwoodiae",0,"M. E. Jones",,,,,,,urn:uuid:bfdabd67-4a78-42cd-98c2-b86095ea3607,"2021-01-07 16:23:24"
+5325529,"R.C. Barneby",,"1988 [NY duplicate]",,"Astragalus eastwoodiae",1,M.E.Jones,,,,,,"J.A. Alexander, Nov 1993: !, probably",urn:uuid:de85f2dc-83c8-42f1-9fa4-63047d08bb48,"2020-09-08 09:22:27"
+5325529,collector,,unknown,,"Astragalus iodopetalus",0,"(Rydb.) Barneby",,,,,,,urn:uuid:d081434a-05c9-4acd-9855-7dc95d3bf440,"2020-09-08 09:22:27"
+23821544,"not specified",,"not specified",,"Astragalus eastwoodiae M. E. Jones",0,"M. E. Jones",,,,,,,urn:uuid:54ec9bdd-b0b3-4415-b786-2660dd954930,"2020-02-13 13:52:16"
+23821543,"not specified",,"not specified",,"Astragalus eastwoodiae M. E. Jones",0,"M. E. Jones",,,,,,,urn:uuid:0416d9ad-2eb2-44aa-98d2-0b06d2519d1b,"2020-02-13 13:52:16"

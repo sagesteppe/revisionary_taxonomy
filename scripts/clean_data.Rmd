@@ -1,0 +1,365 @@
+---
+title: "clean_data"
+author: "steppe"
+date: "3/6/2022"
+output: pdf_document
+---
+
+The purpose of this script is to identify populations of 5 taxa for a phylogenetic revision of species boundaries in local endemic complexes.
+
+```{r, message = F, echo = F, warning = F}
+library(tidyverse)
+library(sf)
+library(here)
+source('functions.R')
+set.seed(42) 
+```
+
+```{r Establish the root folder for the projec, eval = F, echo = F}
+set_here(path='..')
+```
+
+Here we import and subset the initial darwin core herbarium data. 
+```{r import data, echo = F, warning = F}
+
+herb_records <- paste0(here(), '/',
+                       list.files(path = here(),
+                                  recursive = T, pattern = "occurrences.csv$")
+)
+
+asde_files <- herb_records[which(str_detect(herb_records, "Astragalus"))] 
+erco_files <- herb_records[which(str_detect(herb_records, "Eriogonum"))] 
+togl_files <- herb_records[which(str_detect(herb_records, "Townsendia"))]
+deal_files <- herb_records[which(str_detect(herb_records, "Delphinium"))] 
+
+asde <- do.call(rbind, lapply(asde_files, reed_csv))
+erco <- do.call(rbind, lapply(erco_files, reed_csv))
+togl <- do.call(rbind, lapply(togl_files, reed_csv))
+# deal <- do.call(rbind, lapply(deal_files, reed_csv)) # Need different 
+# soro access for DL 'restricted coordinates' < Red Foreman Quote >
+
+rm(asde_files, erco_files, togl_files, deal_files, herb_records, reed_csv)
+```
+
+
+```{r make data spatial - iteratively exclude records}
+asde <- asde %>% 
+  mutate(decimalLongitude = if_else(decimalLongitude > 0, decimalLongitude*-1, decimalLongitude)) %>%
+  st_as_sf( coords = c("decimalLongitude", "decimalLatitude"), crs = 4326, remove = F) %>% 
+  filter(decimalLongitude <= -100) %>% # Siplivinsky 3345 - needs re located
+  filter(!recordNumber %in% c(3345, 13279))  # E. Neese 13279 
+  
+erco <- erco %>% 
+  mutate(decimalLongitude = if_else(decimalLongitude > 0, decimalLongitude*-1, decimalLongitude)) %>% 
+  st_as_sf(coords = c("decimalLongitude", "decimalLatitude"), crs = 4326, remove = F) %>% 
+  filter(recordNumber != 26918)
+
+togl <- togl %>% 
+  mutate(decimalLongitude = if_else(decimalLongitude > 0, decimalLongitude*-1, decimalLongitude)) %>% 
+  st_as_sf(coords = c("decimalLongitude", "decimalLatitude"), crs = 4326, remove = F) %>% 
+  filter(!recordNumber %in% c(
+    '1643', # George Kelley from '49 - before Beamans work & way out there, 
+    # almost certainly a mis-id
+    '05211978-2', # these three (@ MESA) by 2 friends
+    '06021978-6', # in 1978, almost certainly MIS-id
+    '60401978-3' # will annotate in person
+    )) %>% 
+  filter(catalogNumber != 'SJNM-V-0017622') # wrong coords on the set at SJNM, Data retained via a dupe at CS
+```
+
+```{r visualize data to look for outliers, eval = F}
+leaflet(data = togl) %>%
+   addTiles() %>%
+   addMarkers(~decimalLongitude, ~decimalLatitude,
+              popup = ~as.character(recordNumber),
+              label = ~as.character(recordNumber)
+              )
+
+```
+
+
+```{r Create extent of study}
+montrose <- data.frame('Y' = 38.4776, 'X' = -107.8763, 'LOCATION' = 'Montrose') %>% 
+  st_as_sf(coords = c("X", "Y"), crs = 4326) 
+
+montrose_buffer <- montrose %>% 
+  st_transform(32613) %>% 
+  st_buffer(240000) %>% # 150 miles
+  st_transform(4326)
+```
+
+
+```{r see distributions on map}
+base <- ggplot() +
+  geom_sf(data = montrose_buffer, fill = 'bisque2', alpha = 0.4)  +
+  geom_sf(data = montrose) +
+  theme_bw()
+
+base +
+  geom_sf(data = asde, aes(color = scientificName)) +
+  theme_bw()
+
+base +
+  geom_sf(data = erco, aes(color = scientificName))+
+  theme_bw()
+
+base + 
+  geom_sf(data = togl, aes(color = scientificName))+
+  theme_bw()
+
+rm(montrose)
+```
+
+
+```{r Reduce species range to study extent area, warning = F}
+erco <- st_intersection(erco, montrose_buffer)
+asde <- st_intersection(asde, montrose_buffer)
+togl <- st_intersection(togl, montrose_buffer)
+
+rm(montrose_buffer)
+```
+
+```{r if taxonomic changes have occurred use something like this to give a consolidated opinion, warning = F}
+
+erco <- erco %>% 
+  mutate(scientificNameRaw = scientificName, .before = 'geometry') %>% # we will keep original Det's
+  mutate(scientificName =  if_else(scientificName == 'Eriogonum coloradense', 
+                             'Eriogonum coloradense', 'Eriogonum lonchophyllum'), 
+         .before = geometry) %>%  # Torr. & A.Gray
+  mutate(scientificNameAuthorship =  if_else(scientificName == 'Eriogonum lonchophyllum', 
+                             'Torr. & A.Gray', scientificNameAuthorship), 
+         .before = geometry)
+
+base +
+  geom_sf(data = erco, aes(color = scientificName)) +
+  theme_bw()
+```
+
+
+```{r combine records from same populations and duplicates, warning = F}
+togl <- population_finder(togl, 32613, 1200) # 92
+asde <- population_finder(asde, 32613, 1200) # 102
+erco <- population_finder(erco, 32613, 1200) 
+
+rm(population_finder)
+```
+
+Given that **A. debequaeus** was described in 1983, and it does not look like Stanley Welsh or others have ever tracked down a specimen which was collected prior to this date and annotated it, we will filter both data sets for population occurrences known to have occurred after that date. 
+
+```{r, eval = F}
+
+# Bernadette Kuhn	7897,  CS 109216, both growing within the same drainage basin
+# Loraine Yeatts 5924, KHD00022303,  both growing within the same drainage basin
+
+asde_utm <- asde_utm %>% 
+  group_by(scientificName) %>% 
+  filter(!recordNumber %in% c(7897, 5924)) %>% 
+  filter(year >= 1983)
+
+asde_ch <- asde %>% 
+  filter(scientificName == 'Astragalus debequaeus') %>% 
+  st_union() %>% 
+  st_buffer(10000) %>% 
+  st_convex_hull()
+
+asea_ch <- asde_utm %>% 
+  filter(scientificName != 'Astragalus debequaeus') %>% 
+  st_union() %>% 
+  st_buffer(10000) %>% 
+  st_convex_hull()
+
+ggplot() +
+  geom_sf(data = asde_ch, alpha = 0.2)  +
+ # geom_sf(data = asea_ch, alpha = 0.2) +
+  geom_sf(data = asde, aes(color = scientificName)) +
+  theme_bw()
+
+```
+
+
+```{r find half of the closest sites}
+
+asde_sites <- closest_sites(asde, 'Astragalus debequaeus', 'Astragalus eastwoodiae', 
+                      proximity_sites = 8, 
+                      random_sites = 6
+                      )
+
+asde_sites1 <- asde_sites %>% 
+  filter(Sample == 'Y') %>% 
+  mutate(sample_draw = 1:nrow(.))
+
+erco_sites <- closest_sites(erco, 'Eriogonum coloradense', 'Eriogonum lonchophyllum', 
+                      proximity_sites = 8, 
+                      random_sites = 6
+                      )
+erco_sites1 <- erco_sites %>% 
+  filter(Sample == 'Y') %>% 
+  mutate(sample_draw = 1:nrow(.))
+
+togl_sites <- closest_sites(togl, 'Townsendia glabella', 'Townsendia rothrockii', 
+                      proximity_sites = 8, 
+                      random_sites = 6
+                      )
+
+togl_sites1 <- togl_sites %>% 
+  filter(Sample == 'Y') %>% 
+  mutate(sample_draw = 1:nrow(.))
+
+rm(closest_sites, asde, erco, togl)
+```
+
+## Select groups, putative populations, of the target taxon which maximize the mean distance between all groups. 
+```{r}
+asde1 <- filter(asde_sites, scientificName == 'Astragalus debequaeus')
+erco1 <- filter(erco_sites, scientificName == 'Eriogonum coloradense')
+togl1 <- filter(togl_sites, scientificName == 'Townsendia glabella')
+
+rm(asde_sites, erco_sites, togl_sites)
+```
+
+```{r Compute euclidean distances between all combinations of groups up to a sample size, eval = F}
+asde_targets <- target_taxon_grp_fndr(input = asde1, exterior_sites = 7,  
+                                total_sites = 12, mandatory_sites = 3238503)
+
+erco_targets <- target_taxon_grp_fndr(input = erco1, exterior_sites = 7,  
+                                total_sites = 12, mandatory_sites = 2816925)
+
+togl_targets <- target_taxon_grp_fndr(input = togl1, exterior_sites = 7,  
+                                total_sites = 12, mandatory_sites = 0)
+
+#delphi_targets <- target_taxon_grp_fndr(input = delphi, exterior_sites = 7,  
+#                                total_sites = 12, mandatory_sites = )
+```
+
+```{r Remove this function which is not evaluated, echo = F}
+rm(target_taxon_grp_fndr)
+```
+
+```{r detect groups with the highest mean distance}
+
+files <- paste0(here(), '/data/processed/', 
+                list.files(paste0(here(), '/data/processed'), 
+                           pattern = "^Trgt")
+                )
+
+asde_grps <- read.csv(files[which(str_detect(files, "debequaeus"))])
+erco_grps <- read.csv(files[which(str_detect(files, "coloradense"))])
+togl_grps <- read.csv(files[which(str_detect(files, "glabella"))])
+
+asde2 <- asde1[grps_most_dispersed(asde_grps, 14),]
+asde2$sample_draw <- 1:nrow(asde2)
+
+erco2 <- erco1[grps_most_dispersed(erco_grps, 14),]
+erco2$sample_draw <- 1:nrow(erco2)
+
+togl2 <- togl1[grps_most_dispersed(togl_grps, 14),]
+togl2$sample_draw <- 1:nrow(togl2)
+
+rm(files, asde_grps, erco_grps, togl_grps, grps_most_dispersed, togl1, asde1, erco1)
+```
+
+
+```{r visualize distribution of target groups}
+
+base + 
+  geom_sf(data = asde2, color = 'purple') + 
+  geom_sf(data = asde_sites1, color = 'coral1') 
+  
+base + 
+  geom_sf(data = erco2, color = 'purple') + 
+  geom_sf(data = erco_sites1, color = 'coral1') 
+  
+base + 
+  geom_sf(data = togl2, color = 'purple') + 
+  geom_sf(data = togl_sites1, color = 'coral1') 
+  
+```
+
+```{r Prepare data for return}
+columns <- c('scientificName', 'scientificNameAuthorship', 'recordedBy', 
+              'associatedCollectors', 'recordNumber', 'eventDate', 
+             'decimalLatitude', 'decimalLongitude', 'sample_draw')
+
+asde <- rbind(asde2, asde_sites1) %>% 
+  dplyr::select(all_of(columns))
+
+erco <- rbind(erco2, erco_sites1) %>% 
+  dplyr::select(all_of(columns))
+
+togl <- rbind(togl2, togl_sites1) %>% 
+  dplyr::select(any_of(columns))
+
+rm(asde2, erco2, togl2, asde_sites1, erco_sites1, togl_sites1, columns)
+```
+
+```{r}
+
+```
+
+
+# random stuff 
+
+
+
+```{r, eval = F}
+
+asde_labels <- asde_sites %>% 
+  distinct(scientificName) %>% 
+  pull(scientificName) %>% # could be worth gsubbing the first letter to first space.... ;- )
+  unique() %>% 
+  sort() 
+
+erco_labels <- erco_sites %>% 
+  distinct(scientificName) %>% 
+  pull(scientificName) %>% # could be worth gsubbing the first letter to first space.... ;- )
+  unique() %>% 
+  sort() 
+
+togl_labels <- togl_sites %>% 
+  distinct(scientificName) %>% 
+  pull(scientificName) %>% # could be worth gsubbing the first letter to first space.... ;- )
+  unique() %>% 
+  sort() 
+
+base +
+  geom_sf(data = asde_sites, 
+          aes(color = Sample, shape = scientificName), 
+          size = 2) + 
+  theme_bw() # + 
+#  scale_colour_manual(name = "Taxon:",
+#                      labels = labels1,
+#                      values = c("cyan4", "plum3")
+#                      ) +   
+  scale_shape_manual(name = "Taxon:",
+                      labels = labels1,
+                      values = c(17, 15)
+                     ) + 
+  theme(legend.position="bottom")
+
+rm(asde_labels, erco_labels, togl_labels)
+```
+
+determine which sites of the target taxon you are interested in sampling, these may be hard coded or other. I recommended finding the type localities and at the least ensuring that these are resampled. If you have not tracked down types before, my advice is just go to jstor and figure out which herbarium is holding the types. You can search there own Databases and not need a jstor subscription. 
+
+```{r, eval = F}
+
+'A. debequaeus' = '7 mi S De Beque' = 'Welsh'
+'A. eastwoodiae' = 'Westwater ?'  = 'Jones'
+
+'D. alpestre' = 'Mtn. NW of Como' = 'Crandall'
+'D. robustum' = 'Wahatoya Creek' = 'Rydberg'
+'D. ramosum' = 'Piles ?Pikes? Peak' = 'Bessey'
+'D. ramosum forma sidalceoides' = 'Cochetopa vic.' == 'Weber' 
+# see Arnett 6378 for formations ???
+
+'E. coloradense' = 'Mt. Harvard' = 'Clements'
+'E. lonchophyllum' = 'Rio Blanc' = 'Newberry'
+
+'T. glabella' = 'La Pagosa' = 'Newberry'
+'T. rothrockii' = 'South Park' = 'Rothrockii'
+
+
+```
+
+
+
