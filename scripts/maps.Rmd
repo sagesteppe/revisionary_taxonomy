@@ -61,6 +61,18 @@ ggmap::ggmap(basemap) +
 ```
 
 
+```{r Download roads data for relevant counties and subset }
+
+counties <- st_intersects(counties_filt, pts)
+counties <- counties %>% # find counties which intersect
+  map(~ if_else(length(.) > 0, T, F))  %>% 
+  unlist()
+counties <- counties_filt[counties == TRUE, ]
+
+ggplot(data = counties) +
+  geom_sf()
+```
+
 Create a couple types of basemaps for recycling throughout the process.
 ```{r create some basemaps}
 base <- ggplot() +
@@ -68,4 +80,6 @@ base <- ggplot() +
   geom_sf(data = montrose) +
   theme_bw()
 ```
+
+
 

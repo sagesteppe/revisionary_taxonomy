@@ -47,8 +47,8 @@ rm(asde_files, erco_files, togl_files, deal_files, herb_records, reed_csv)
 asde <- asde %>% 
   mutate(decimalLongitude = if_else(decimalLongitude > 0, decimalLongitude*-1, decimalLongitude)) %>%
   st_as_sf( coords = c("decimalLongitude", "decimalLatitude"), crs = 4326, remove = F) %>% 
-  filter(!catalogNumber != 'CM289374') %>% # one copy of Siplivinsky 3345 - removed here
-  filter(!recordNumber != 11383) %>%  #  11383 a typo is duchensis
+  filter(catalogNumber != 'CM289374') %>% # one copy of Siplivinsky 3345 - removed here
+  filter(recordNumber != 11383) %>%  #  11383 a typo is duchensis
   distinct(recordNumber, .keep_all = T)
 
 erco <- erco %>% 
@@ -153,11 +153,12 @@ Given that **A. debequaeus** was described in 1983, and it does not look like St
 ```{r, eval = F}
 
 # Bernadette Kuhn	7897,  CS 109216, both growing within the same drainage basin
-# Loraine Yeatts 5924, KHD00022303,  both growing within the same drainage basin
+# Loraine Yeatts 5924, KHD00022303,  HAS BEEN ANNOTATED TO A. EASTWOODIAE, Only one
+# record kept as both in same ara. 
 
-asde_utm <- asde_utm %>% 
+asde <- asde %>% 
   group_by(scientificName) %>% 
-  filter(!recordNumber %in% c(7897, 5924)) %>% 
+  filter(!recordNumber %in% c(5924)) %>% 
   filter(year >= 1983)
 
 asde_ch <- asde %>% 
@@ -166,7 +167,7 @@ asde_ch <- asde %>%
   st_buffer(10000) %>% 
   st_convex_hull()
 
-asea_ch <- asde_utm %>% 
+asea_ch <- asde %>% 
   filter(scientificName != 'Astragalus debequaeus') %>% 
   st_union() %>% 
   st_buffer(10000) %>% 
@@ -299,9 +300,9 @@ rm(asde2, erco2, togl2, asde_sites1, erco_sites1, togl_sites1, columns)
 
 now we can write out these data
 ```{r}
-st_write(asde, paste0(here(), '/data/processed/', 'astragalus.shp'))
-st_write(erco, paste0(here(), '/data/processed/', 'eriogonum.shp'))
-st_write(togl, paste0(here(), '/data/processed/', 'townsendia.shp'))
+st_write(asde, paste0(here(), '/data/processed/', 'astragalus.shp'), quiet = T)
+st_write(erco, paste0(here(), '/data/processed/', 'eriogonum.shp'), quiet = T)
+st_write(togl, paste0(here(), '/data/processed/', 'townsendia.shp'), quiet = T)
 
 rm(asde, erco, togl, base)
 ```
