@@ -5,19 +5,66 @@ date: "3/22/2022"
 output: pdf_document
 ---
 
-
 ```{r}
-st_write(asde, paste0(here(), '/data/processed/', 'astragalus.shp'))
-st_write(erco, paste0(here(), '/data/processed/', 'eriogonum.shp'))
-st_write(togl, paste0(here(), '/data/processed/', 'townsendia.shp'))
+library(here)
+library(tidyverse)
+library(sf)
+library(tigris)
+```
 
+```{r import data}
+astragalus <- st_read(paste0(here(), '/data/processed/', 'astragalus.shp'), quiet = T)
+eriogonum <- st_read(paste0(here(), '/data/processed/', 'eriogonum.shp'), quiet = T)
+townsendia <- st_read(paste0(here(), '/data/processed/', 'townsendia.shp'), quiet = T)
 ```
 
 
 
+```{r download political boundaries}
+counties_filt <- tigris::counties(state = c('AZ', 'CO', 'UT', 'NM'))
+bb <- bind_rows(astragalus, eriogonum, townsendia) %>% 
+  st_buffer(50000) %>% 
+  st_transform(4269) %>% 
+  st_convex_hull()
+bb1 <- bind_rows(astragalus, eriogonum, townsendia) %>% 
+  st_buffer(9500) %>% 
+  st_transform(4269) %>% 
+  st_bbox()
+counties_filt <- st_crop(counties_filt, bb)
+
+pts <- bind_rows(astragalus, eriogonum, townsendia) %>% 
+  st_transform(4269) 
+
+counties_filt1 <- st_cast(counties_filt, 'MULTILINESTRING')
+
+ggplot(counties_filt1) +
+  geom_sf() +
+  geom_sf(data = pts, aes(color = scntfcN)) +
+  coord_sf(xlim = c(bb1[1], bb1[3]), ylim = c(bb1[2], bb1[4])) +  
+  theme_bw() 
+  
+rm(bb)
+```
+
+
+```{r download a basemap}
+bb2 <- bb1
+names(bb2) <- c('left', 'bottom', 'right', 'top')
+basemap <- ggmap::get_stamenmap(bb2,  maptype = "terrain")
+
+ggmap::ggmap(basemap) +
+  geom_sf(data = counties_filt1, inherit.aes = FALSE,) +
+  geom_sf(data = pts, aes(color = scntfcN), inherit.aes = FALSE,) +
+  coord_sf(xlim = c(bb1[1], bb1[3]), ylim = c(bb1[2], bb1[4])) +  
+  theme_bw() 
+  
+```
+
+
+Create a couple types of basemaps for recyling throughout the process.
 ```{r create some basemaps}
 base <- ggplot() +
-  geom_sf(data = montrose_buffer, fill = 'bisque2', alpha = 0.4)  +
+  geom_sf(data = montrose_buffer, fill = 'bisque2', alpha = 0.2)  +
   geom_sf(data = montrose) +
   theme_bw()
 ```

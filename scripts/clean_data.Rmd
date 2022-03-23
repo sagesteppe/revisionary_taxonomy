@@ -48,7 +48,7 @@ asde <- asde %>%
   mutate(decimalLongitude = if_else(decimalLongitude > 0, decimalLongitude*-1, decimalLongitude)) %>%
   st_as_sf( coords = c("decimalLongitude", "decimalLatitude"), crs = 4326, remove = F) %>% 
   filter(decimalLongitude <= -100) %>% # Siplivinsky 3345 - needs re located
-  filter(!recordNumber %in% c(3345, 13279))  # E. Neese 13279 
+  filter(!recordNumber %in% c(3345, 13279, 11383))  # E. Neese 13279 , 11383 a typo is duchensis
   
 erco <- erco %>% 
   mutate(decimalLongitude = if_else(decimalLongitude > 0, decimalLongitude*-1, decimalLongitude)) %>% 
