@@ -61,7 +61,7 @@ ggmap::ggmap(basemap) +
 ```
 
 
-Create a couple types of basemaps for recyling throughout the process.
+Create a couple types of basemaps for recycling throughout the process.
 ```{r create some basemaps}
 base <- ggplot() +
   geom_sf(data = montrose_buffer, fill = 'bisque2', alpha = 0.2)  +

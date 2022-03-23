@@ -47,13 +47,15 @@ rm(asde_files, erco_files, togl_files, deal_files, herb_records, reed_csv)
 asde <- asde %>% 
   mutate(decimalLongitude = if_else(decimalLongitude > 0, decimalLongitude*-1, decimalLongitude)) %>%
   st_as_sf( coords = c("decimalLongitude", "decimalLatitude"), crs = 4326, remove = F) %>% 
-  filter(decimalLongitude <= -100) %>% # Siplivinsky 3345 - needs re located
-  filter(!recordNumber %in% c(3345, 13279, 11383))  # E. Neese 13279 , 11383 a typo is duchensis
-  
+  filter(!catalogNumber != 'CM289374') %>% # one copy of Siplivinsky 3345 - removed here
+  filter(!recordNumber != 11383) %>%  #  11383 a typo is duchensis
+  distinct(recordNumber, .keep_all = T)
+
 erco <- erco %>% 
   mutate(decimalLongitude = if_else(decimalLongitude > 0, decimalLongitude*-1, decimalLongitude)) %>% 
   st_as_sf(coords = c("decimalLongitude", "decimalLatitude"), crs = 4326, remove = F) %>% 
-  filter(recordNumber != 26918)
+  filter(recordNumber != 26918) %>% 
+  distinct(recordNumber, .keep_all = T)
 
 togl <- togl %>% 
   mutate(decimalLongitude = if_else(decimalLongitude > 0, decimalLongitude*-1, decimalLongitude)) %>% 
@@ -65,7 +67,8 @@ togl <- togl %>%
     '06021978-6', # in 1978, almost certainly MIS-id
     '60401978-3' # will annotate in person
     )) %>% 
-  filter(catalogNumber != 'SJNM-V-0017622') # wrong coords on the set at SJNM, Data retained via a dupe at CS
+  filter(catalogNumber != 'SJNM-V-0017622')  %>% # wrong coords on the set at SJNM, Data retained via a dupe at CS
+  distinct(recordNumber, .keep_all = T)
 ```
 
 ```{r visualize data to look for outliers, eval = F}
