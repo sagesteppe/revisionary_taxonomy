@@ -1,0 +1,24 @@
+---
+title: "maps"
+author: "steppe"
+date: "3/22/2022"
+output: pdf_document
+---
+
+
+```{r}
+st_write(asde, paste0(here(), '/data/processed/', 'astragalus.shp'))
+st_write(erco, paste0(here(), '/data/processed/', 'eriogonum.shp'))
+st_write(togl, paste0(here(), '/data/processed/', 'townsendia.shp'))
+
+```
+
+
+
+```{r create some basemaps}
+base <- ggplot() +
+  geom_sf(data = montrose_buffer, fill = 'bisque2', alpha = 0.4)  +
+  geom_sf(data = montrose) +
+  theme_bw()
+```
+

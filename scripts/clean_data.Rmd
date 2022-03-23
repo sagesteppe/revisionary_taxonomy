@@ -11,6 +11,7 @@ The purpose of this script is to identify populations of 5 taxa for a phylogenet
 library(tidyverse)
 library(sf)
 library(here)
+library(leaflet)
 source('functions.R')
 set.seed(42) 
 ```
@@ -68,7 +69,7 @@ togl <- togl %>%
 ```
 
 ```{r visualize data to look for outliers, eval = F}
-leaflet(data = togl) %>%
+leaflet(data = asde) %>%
    addTiles() %>%
    addMarkers(~decimalLongitude, ~decimalLatitude,
               popup = ~as.character(recordNumber),
@@ -292,34 +293,20 @@ togl <- rbind(togl2, togl_sites1) %>%
 rm(asde2, erco2, togl2, asde_sites1, erco_sites1, togl_sites1, columns)
 ```
 
-```{r}
 
+now we can write out these data
+```{r}
+st_write(asde, paste0(here(), '/data/processed/', 'astragalus.shp'))
+st_write(erco, paste0(here(), '/data/processed/', 'eriogonum.shp'))
+st_write(togl, paste0(here(), '/data/processed/', 'townsendia.shp'))
+
+rm(asde, erco, togl, base)
 ```
 
 
 # random stuff 
 
-
-
 ```{r, eval = F}
-
-asde_labels <- asde_sites %>% 
-  distinct(scientificName) %>% 
-  pull(scientificName) %>% # could be worth gsubbing the first letter to first space.... ;- )
-  unique() %>% 
-  sort() 
-
-erco_labels <- erco_sites %>% 
-  distinct(scientificName) %>% 
-  pull(scientificName) %>% # could be worth gsubbing the first letter to first space.... ;- )
-  unique() %>% 
-  sort() 
-
-togl_labels <- togl_sites %>% 
-  distinct(scientificName) %>% 
-  pull(scientificName) %>% # could be worth gsubbing the first letter to first space.... ;- )
-  unique() %>% 
-  sort() 
 
 base +
   geom_sf(data = asde_sites, 
