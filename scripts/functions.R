@@ -275,3 +275,17 @@ grps_most_dispersed <- function(x, max_oversample){
 
 
 
+
+####################################
+###         JOHN_TIGGER          ###
+####################################
+
+john_tigger <- function(x) {
+  name <- x$NAME
+  county_roads <- tigris::roads(state = x$STATEFP,
+                                county = x$COUNTYFP, year = 2020)
+  county_roads <- mutate(county_roads, NAME = name)
+  
+  return(county_roads)
+}
+

@@ -6,6 +6,7 @@ output: pdf_document
 ---
 
 ```{r}
+#set_here(path = "/hdd/revisionary_taxonomy")
 library(here)
 library(tidyverse)
 library(sf)
@@ -46,7 +47,7 @@ ggplot(counties_filt1) +
 rm(bb)
 ```
 
-
+We will download  basemap for making a large overview map
 ```{r download a basemap}
 bb2 <- bb1
 names(bb2) <- c('left', 'bottom', 'right', 'top')
@@ -57,11 +58,11 @@ ggmap::ggmap(basemap) +
   geom_sf(data = pts, aes(color = scntfcN), inherit.aes = FALSE,) +
   coord_sf(xlim = c(bb1[1], bb1[3]), ylim = c(bb1[2], bb1[4])) +  
   theme_bw() 
-  
+
 ```
+## Download and process Road Data
 
-
-```{r Download roads data for relevant counties and subset }
+```{r Download roads data for relevant counties and subset}
 
 counties <- st_intersects(counties_filt, pts)
 counties <- counties %>% # find counties which intersect
@@ -69,11 +70,55 @@ counties <- counties %>% # find counties which intersect
   unlist()
 counties <- counties_filt[counties == TRUE, ]
 
-ggplot(data = counties) +
+counties <- bind_rows(counties,
+                  counties_filt[counties_filt$NAME %in% c('Montrose','Ouray'),])
+
+lst_result <- apply(counties, 1, john_tigger)
+county_roads <- bind_rows(lst_result) %>% st_as_sf()
+county_roads <- st_crop(county_roads, bb1) # reduce extent.
+
+ggplot(county_roads) +
   geom_sf()
+
+table(county_roads$RTTYP)
 ```
 
-Create a couple types of basemaps for recycling throughout the process.
+The [US Census Bureau Route Type Codes](https://www.census.gov/library/reference/code-lists/route-type-codes.html), are displayed below for a lookup table.
+
+   Route Type Code  	      Route Type Code Description
+--------------------     ---------------------------------
+        C 	                      County
+        I 	                      Interstate
+        M 	                      Common Name
+        O 	                      Other
+        S 	                      State recognized
+        U  	                      U.S.
+------------------      ---------------------------------
+
+We will subset this data frame to have a course map for our overmap reference maps
+
+```{r Subset to Coarse Roads}
+roads_coarse <- filter(county_roads, RTTYP %in% c('I','U','S'))
+
+ggplot(roads_coarse) +
+  geom_sf()
+
+ggmap::ggmap(basemap) +
+  geom_sf(data = counties_filt1, lty = 3, inherit.aes = FALSE) +
+  geom_sf(data = pts, aes(color = scntfcN), inherit.aes = FALSE) +
+  geom_sf(data = roads_coarse, inherit.aes = F, colour = 'grey20') +
+  coord_sf(xlim = c(bb1[1], bb1[3]), ylim = c(bb1[2], bb1[4])) +  
+  theme_bw() 
+```
+```{r subset finer roads to relevant areas}
+
+
+```
+
+
+## create more basemaps
+
+Create a couple types of base maps for recycling throughout the process.
 ```{r create some basemaps}
 base <- ggplot() +
   geom_sf(data = montrose_buffer, fill = 'bisque2', alpha = 0.2)  +
