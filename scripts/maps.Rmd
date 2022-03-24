@@ -5,37 +5,50 @@ date: "3/22/2022"
 output: pdf_document
 ---
 
-```{r}
+```{r Load Libraries, warning = F, message = F}
 #set_here(path = "/hdd/revisionary_taxonomy")
 library(here)
 library(tidyverse)
 library(sf)
 library(tigris)
+library(ggspatial)
 ```
 
-```{r import data}
+```{r import plant data, echo = F}
 astragalus <- st_read(paste0(here(), '/data/processed/', 'astragalus.shp'), quiet = T)
 eriogonum <- st_read(paste0(here(), '/data/processed/', 'eriogonum.shp'), quiet = T)
 townsendia <- st_read(paste0(here(), '/data/processed/', 'townsendia.shp'), quiet = T)
 ```
 
-
-
-```{r download political boundaries}
-counties_filt <- tigris::counties(state = c('AZ', 'CO', 'UT', 'NM'))
-bb <- bind_rows(astragalus, eriogonum, townsendia) %>% 
-  st_buffer(50000) %>% 
-  st_transform(4269) %>% 
-  st_convex_hull()
-bb1 <- bind_rows(astragalus, eriogonum, townsendia) %>% 
-  st_buffer(9500) %>% 
-  st_transform(4269) %>% 
-  st_bbox()
-counties_filt <- st_crop(counties_filt, bb)
-
+```{r Create Boundary boxes, echo = F}
 pts <- bind_rows(astragalus, eriogonum, townsendia) %>% 
   st_transform(4269) 
 
+bb <- pts %>% 
+  st_transform(32613) %>% 
+  st_buffer(50000) %>% 
+  st_transform(4269) %>% 
+  st_convex_hull() %>% 
+  st_bbox()
+bb1 <- pts %>% 
+  st_transform(32613) %>% 
+  st_buffer(7500) %>% 
+  st_transform(4269) %>% 
+  st_convex_hull() %>% 
+  st_bbox()
+```
+
+
+```{r download political boundaries, eval = F}
+counties_filt <- tigris::counties(state = c('AZ', 'CO', 'UT', 'NM'))
+counties_filt <- st_crop(counties_filt, bb)
+
+st_write(counties_filt, paste0(here(), '/data/processed/counties.shp'))
+```
+
+```{r Evaluate downloaded Political Data}
+counties_filt <- st_read(paste0(here(), '/data/processed/counties.shp'), 
+                         quiet = T)
 counties_filt1 <- st_cast(counties_filt, 'MULTILINESTRING')
 
 ggplot(counties_filt1) +
@@ -48,21 +61,28 @@ rm(bb)
 ```
 
 We will download  basemap for making a large overview map
-```{r download a basemap}
+```{r download a basemap, eval = F}
 bb2 <- bb1
 names(bb2) <- c('left', 'bottom', 'right', 'top')
 basemap <- ggmap::get_stamenmap(bb2,  maptype = "terrain")
+
+coarse_basemap <- tempfile(tmpdir = paste0(here(), '/data/processed/'))
+saveRDS(basemap, file = coarse_basemap)
+rm(bb2, coarse_basemap)
+```
+
+```{r Import basemap from Local}
+basemap <- readRDS("/hdd/revisionary_taxonomy/data/processed//file82021d31710")
 
 ggmap::ggmap(basemap) +
   geom_sf(data = counties_filt1, inherit.aes = FALSE,) +
   geom_sf(data = pts, aes(color = scntfcN), inherit.aes = FALSE,) +
   coord_sf(xlim = c(bb1[1], bb1[3]), ylim = c(bb1[2], bb1[4])) +  
   theme_bw() 
-
 ```
-## Download and process Road Data
 
-```{r Download roads data for relevant counties and subset}
+## Download and process Road Data
+```{r Download roads data for relevant counties and subset, eval = F}
 
 counties <- st_intersects(counties_filt, pts)
 counties <- counties %>% # find counties which intersect
@@ -74,13 +94,16 @@ counties <- bind_rows(counties,
                   counties_filt[counties_filt$NAME %in% c('Montrose','Ouray'),])
 
 lst_result <- apply(counties, 1, john_tigger)
-county_roads <- bind_rows(lst_result) %>% st_as_sf()
-county_roads <- st_crop(county_roads, bb1) # reduce extent.
+cnty_rds <- bind_rows(lst_result) %>% st_as_sf()
+cnty_rds <- st_crop(cnty_rds, bb1) # reduce extent.
 
-ggplot(county_roads) +
-  geom_sf()
+st_write(cnty_rds, paste0(here(), '/data/processed/roads.shp'), quiet =T)
+rm(counties, lst_result, john_tigger)
+```
 
-table(county_roads$RTTYP)
+```{r read in county road data}
+cnty_rds <- st_read(paste0(here(), '/data/processed/roads.shp'), quiet =T)
+table(cnty_rds$RTTYP)
 ```
 
 The [US Census Bureau Route Type Codes](https://www.census.gov/library/reference/code-lists/route-type-codes.html), are displayed below for a lookup table.
@@ -95,28 +118,115 @@ The [US Census Bureau Route Type Codes](https://www.census.gov/library/reference
         U  	                      U.S.
 ------------------      ---------------------------------
 
-We will subset this data frame to have a course map for our overmap reference maps
+We will subset this data frame to have a course map for our over map reference maps
 
 ```{r Subset to Coarse Roads}
-roads_coarse <- filter(county_roads, RTTYP %in% c('I','U','S'))
+spp_cols <- c(
+  'darkorange4', 'darkseagreen4', 
+  'slateblue4', 'deeppink4', 
+  'tan2', 'thistle4')
 
-ggplot(roads_coarse) +
-  geom_sf()
+rds_coarse <- filter(cnty_rds, RTTYP %in% c('I','U','S'))
 
 ggmap::ggmap(basemap) +
   geom_sf(data = counties_filt1, lty = 3, inherit.aes = FALSE) +
   geom_sf(data = pts, aes(color = scntfcN), inherit.aes = FALSE) +
-  geom_sf(data = roads_coarse, inherit.aes = F, colour = 'grey20') +
+  geom_sf(data = rds_coarse, inherit.aes = F, colour = 'grey20') +
+  scale_color_manual(values= spp_cols)+
+  coord_sf(xlim = c(bb1[1], bb1[3]), ylim = c(bb1[2], bb1[4])) +  
+  labs(title="Sampled Populations",  x ="", y = "", color = 'Species') +
+  theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.text.y = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        legend.position="bottom",
+        legend.direction = "horizontal"
+        ) +
+    theme(panel.border = element_rect(colour = "black", fill=NA),
+        legend.background = element_rect(linetype = 2, size = 0.5, colour = 1))
+  
+```
+
+
+```{r subset finer roads to relevant areas, eval = F}
+cnty_rds_local <- cnty_rds %>% filter(! RTTYP %in% c('I','U','S'))
+site_adj_roads <- pts %>% 
+  st_transform(32613) %>% 
+  st_buffer(15000) %>% 
+  st_union() %>% 
+  st_as_sf() %>% 
+  st_transform(4269) %>% 
+  st_intersection(., cnty_rds_local)
+
+site_adj_roads <- rmapshaper::ms_simplify(site_adj_roads, keep = 0.5)
+site_adj_roads <- st_as_sf(site_adj_roads)
+
+ggmap::ggmap(basemap) +
+  geom_sf(data = counties_filt1, lty = 3, inherit.aes = FALSE) +
+  geom_sf(data = rds_coarse, inherit.aes = F, colour = 'grey20') +
+  geom_sf(data = site_adj_roads, inherit.aes = F) +
+  geom_sf(data = pts, aes(color = scntfcN), inherit.aes = FALSE) +
   coord_sf(xlim = c(bb1[1], bb1[3]), ylim = c(bb1[2], bb1[4])) +  
   theme_bw() 
+
+st_write(site_adj_roads, paste0(here(), '/data/processed/roads_nr_sites.shp'), quiet =T)
+rm(cnty_rds_local, cnty_rds)
 ```
-```{r subset finer roads to relevant areas}
 
-
+```{r read roads back in, eval = F}
+site_adj_roads <- st_read(paste0(here(), '/data/processed/roads_nr_sites.shp'), quiet =T)
 ```
-
 
 ## create more basemaps
+
+Now we will download a basemap for each population, we will start testing them out on at a time
+
+```{r, warning = F}
+
+topo_basemap <- 
+  
+  
+bb2 <- townsendia %>% filter(rcrdNmb == 761) %>% 
+  st_buffer(2000) %>% 
+  st_transform(4326) %>% 
+  st_bbox()
+names(bb2) <- c('left', 'bottom', 'right', 'top')
+basemap_t <- ggmap::get_stamenmap(bb2, zoom = 13, maptype = "terrain")
+
+
+geom1 <- ggplot() + 
+  geom_sf(data = us_states, fill = "white") + 
+  geom_sf(data = nc_bb, fill = NA, color = "red", size = 1.2) +
+  theme_void()
+
+
+#Create the map of NC
+geom2 <- ggplot() + 
+  geom_sf(data = north_carolina, aes(fill = SIDS_RATE)) +
+  scale_fill_carto_c(palette = "Burg") +
+  theme_void() +
+  labs(fill="Proportion", title = "All Births with SIDS 1974")+
+  theme(legend.position = c(0.25, 0.1),
+        plot.title = element_text(hjust = 0.7),
+        legend.direction = "horizontal",
+        legend.key.width = unit(10, "mm"))
+cowplot::ggdraw() +
+  cowplot::draw_plot(geom2) +
+  cowplot::draw_plot(geom1, x = 0.04, y = 0.7, width = 0.3, height = 0.3)
+
+ggmap::ggmap(basemap) +
+  coord_sf(xlim = c(bb2[1], bb2[3]), ylim = c(bb2[2], bb2[4])) +
+  geom_sf(data = site_adj_roads, inherit.aes = F) +
+  geom_sf_label(data = site_adj_roads, aes(label = NAME),inherit.aes = F) +
+  geom_sf(data = townsendia, inherit.aes = F) +
+  annotation_scale(location = "bl", width_hint = 0.4) +
+  annotation_north_arrow(location = "bl", which_north = "true", 
+        pad_x = unit(0.25, "in"), pad_y = unit(0.25, "in"),
+        style = north_arrow_fancy_orienteering)
+
+
+```
+
 
 Create a couple types of base maps for recycling throughout the process.
 ```{r create some basemaps}
