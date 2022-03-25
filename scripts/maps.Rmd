@@ -128,7 +128,7 @@ spp_cols <- c(
 
 rds_coarse <- filter(cnty_rds, RTTYP %in% c('I','U','S'))
 
-ggmap::ggmap(basemap) +
+topo_base <- ggmap::ggmap(basemap) +
   geom_sf(data = counties_filt1, lty = 3, inherit.aes = FALSE) +
   geom_sf(data = pts, aes(color = scntfcN), inherit.aes = FALSE) +
   geom_sf(data = rds_coarse, inherit.aes = F, colour = 'grey20') +
@@ -177,52 +177,74 @@ rm(cnty_rds_local, cnty_rds)
 site_adj_roads <- st_read(paste0(here(), '/data/processed/roads_nr_sites.shp'), quiet =T)
 ```
 
+
+## Determine which plots are in proximity to each other
+
+Each population will have a one page print out, with three plots: 
+  - the overview plot of all populations, 
+  - a plot within a 16 km boundary box, 
+  -  a map of 2.5 km around the population. 
+We will work on creating as few of the second plot as possible. We will use a window of 12km, rather than 16km to ensure some points are not squished to the side of maps.
+
+
+```{r}
+counts <- pts %>% 
+  st_buffer(10000) %>% 
+  st_transform(4326) %>% 
+  st_bbox() %>% 
+  st_as_sfc() %>% 
+  st_as_sf()
+```
+
+
 ## create more basemaps
 
 Now we will download a basemap for each population, we will start testing them out on at a time
 
 ```{r, warning = F}
 
-topo_basemap <- 
-  
-  
 bb2 <- townsendia %>% filter(rcrdNmb == 761) %>% 
   st_buffer(2000) %>% 
   st_transform(4326) %>% 
   st_bbox()
-names(bb2) <- c('left', 'bottom', 'right', 'top')
-basemap_t <- ggmap::get_stamenmap(bb2, zoom = 13, maptype = "terrain")
+
+bb3 <- bb2
+names(bb3) <- c('left', 'bottom', 'right', 'top')
+basemap_t <- ggmap::get_stamenmap(bb3, zoom = 13, maptype = "terrain")
 
 
-geom1 <- ggplot() + 
-  geom_sf(data = us_states, fill = "white") + 
-  geom_sf(data = nc_bb, fill = NA, color = "red", size = 1.2) +
-  theme_void()
+mapbb <- townsendia %>% filter(rcrdNmb == 761) %>% 
+  st_buffer(10000) %>% 
+  st_transform(4326) %>% 
+  st_bbox() %>% 
+  st_as_sfc() %>% 
+  st_as_sf()
 
-
-#Create the map of NC
-geom2 <- ggplot() + 
-  geom_sf(data = north_carolina, aes(fill = SIDS_RATE)) +
-  scale_fill_carto_c(palette = "Burg") +
-  theme_void() +
-  labs(fill="Proportion", title = "All Births with SIDS 1974")+
-  theme(legend.position = c(0.25, 0.1),
-        plot.title = element_text(hjust = 0.7),
-        legend.direction = "horizontal",
-        legend.key.width = unit(10, "mm"))
-cowplot::ggdraw() +
-  cowplot::draw_plot(geom2) +
-  cowplot::draw_plot(geom1, x = 0.04, y = 0.7, width = 0.3, height = 0.3)
 
 ggmap::ggmap(basemap) +
-  coord_sf(xlim = c(bb2[1], bb2[3]), ylim = c(bb2[2], bb2[4])) +
-  geom_sf(data = site_adj_roads, inherit.aes = F) +
-  geom_sf_label(data = site_adj_roads, aes(label = NAME),inherit.aes = F) +
-  geom_sf(data = townsendia, inherit.aes = F) +
+  geom_sf(data = counties_filt1, lty = 3, inherit.aes = FALSE) +
+  geom_sf(data = rds_coarse, inherit.aes = F, colour = 'grey20') +
+  geom_sf(data = pts, aes(color = scntfcN), inherit.aes = FALSE) +
+  geom_sf(data = mapbb, fill = NA, color = "red", size = 1.0, inherit.aes = F) +
+  scale_color_manual(values= spp_cols)+
+  coord_sf(xlim = c(bb1[1], bb1[3]), ylim = c(bb1[2], bb1[4])) +  
+  labs(title="Sampled Populations",  x ="", y = "", color = 'Species') +
+  theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.text.y = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        legend.position="bottom",
+        legend.direction = "horizontal",
+        panel.border = element_rect(colour = "black", fill=NA),
+        legend.background = element_rect(linetype = 2, size = 0.5, colour = 1)) +
   annotation_scale(location = "bl", width_hint = 0.4) +
-  annotation_north_arrow(location = "bl", which_north = "true", 
-        pad_x = unit(0.25, "in"), pad_y = unit(0.25, "in"),
-        style = north_arrow_fancy_orienteering)
+    annotation_north_arrow(location = "tl", which_north = "true", 
+        height = unit(0.8, "cm"),  width = unit(0.6, "cm"),
+        pad_x = unit(0.0, "in"), pad_y = unit(0.0, "in"),
+        style = north_arrow_orienteering)
+
+
+
 
 
 ```

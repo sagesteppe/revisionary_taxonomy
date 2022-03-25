@@ -289,3 +289,34 @@ john_tigger <- function(x) {
   return(county_roads)
 }
 
+
+###################################
+####          PTS_CELL        #####
+###################################
+
+pts_cell <- function(x, utmzone, buf_dist, out_crs) {
+  
+  buffered <- x %>% 
+    st_as_sf() %>% 
+    st_transform(32613) %>% 
+    st_buffer(12000) %>% 
+    st_transform(4269) %>% 
+    st_bbox() %>% 
+    st_as_sfc() %>% 
+    st_as_sf()
+  
+  return(buffered)
+  
+}
+
+
+#################################
+###      WINDOW_SEARCH       ####
+#################################
+
+window_search <- function(x){
+  
+  
+}
+  
+}
