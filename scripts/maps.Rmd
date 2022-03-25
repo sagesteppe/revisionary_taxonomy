@@ -36,6 +36,8 @@ bb1 <- pts %>%
   st_transform(4269) %>% 
   st_convex_hull() %>% 
   st_bbox()
+
+rm(astragalus, eriogonum, townsendia)
 ```
 
 
@@ -188,12 +190,15 @@ We will work on creating as few of the second plot as possible. We will use a wi
 
 
 ```{r}
-counts <- pts %>% 
-  st_buffer(10000) %>% 
-  st_transform(4326) %>% 
-  st_bbox() %>% 
-  st_as_sfc() %>% 
-  st_as_sf()
+
+a <- pts %>% 
+  split(., 1:nrow(.))%>%
+           purrr::map(pts_cell) %>% 
+  bind_rows() %>% 
+  st_as_sf() %>% 
+  mutate(rownum = 1:nrow(.), .before = x)
+
+out <- st_intersects(a, pts)
 ```
 
 
