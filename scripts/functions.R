@@ -317,6 +317,6 @@ pts_cell <- function(x, utmzone, buf_dist, out_crs) {
 window_search <- function(x){
   
   
-}
   
 }
+  

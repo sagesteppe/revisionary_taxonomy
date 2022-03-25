@@ -205,10 +205,11 @@ out <- st_intersects(a, pts)
 
 # working on getting function together...
 
+# create an id system for the list.
+names(out) <- paste0('row', 1:nrow(out))
 
 # step 1 ######################################
 # IDENTIFY ALL SINGLETON WINDOWS
-names(out) <- paste0('row', 1:nrow(out))
 aLL <- lapply(out, length)
 singletons <- out[aLL<2] # identify ALL lone windows
 multiples <- out[aLL>=2] # we can use the inverse to find all multiples
@@ -227,9 +228,37 @@ true_couplets <- couplets[equi == 2]
 recip_pairs <- outer(true_couplets, true_couplets, Vectorize(all.equal)) == T
 recip_pairs[upper.tri(recip_pairs, diag = T)] <- NA
 kept_pair <- which(recip_pairs, arr=TRUE) # RECORDS TO KEEP
+pairs_remove <- recip_pairs[kept_pair[,2],]
+
+# Step 3 subset original dataset with removed points,
+kept <- paste(rownames(kept_pair), collapse = "|")
+remove <- paste(rownames(pairs_remove), collapse = "|")
+
+groups <- multiples[str_detect(names(multiples), kept, negate = T)]
+groups <- groups[str_detect(names(groups), remove, negate = T)]
 
 # step 3 #######################################
-# Identify windows which cover most of the sites
+# Identify groups which are subset of a larger one
+
+big <- outer(groups, groups, Vectorize(setequal)) == T
+big[upper.tri(big, diag = T)] <- NA
+
+shared_groups <- which(big, arr=T)
+alpha <- data.frame(shared_groups)
+alpha <- cbind(rownames(alpha), shared_groups)
+rownames(alpha) <- NULL
+colnames(alpha) <- c('target','row','col')
+alpha <- alpha %>% 
+  data.frame() %>% 
+  mutate(target = str_remove(target, '[.].*')) %>% 
+  arrange(
+    str_remove(target, 'row') %>% as.numeric()
+  )
+
+big
+# step 4 ########################################
+# identify groups with shared individuals
+
 
 
 ```
