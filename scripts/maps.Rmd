@@ -6,12 +6,15 @@ output: pdf_document
 ---
 
 ```{r Load Libraries, warning = F, message = F}
+shhh <- suppressPackageStartupMessages
 #set_here(path = "/hdd/revisionary_taxonomy")
-library(here)
-library(tidyverse)
-library(sf)
-library(tigris)
-library(ggspatial)
+shhh(library(here))
+shhh(library(tidyverse))
+shhh(library(sf))
+shhh(library(tigris))
+shhh(library(ggspatial))
+source('functions.R')
+rm(shhh)
 ```
 
 ```{r import plant data, echo = F}
@@ -74,7 +77,7 @@ rm(bb2, coarse_basemap)
 ```
 
 ```{r Import basemap from Local}
-basemap <- readRDS("/hdd/revisionary_taxonomy/data/processed//file82021d31710")
+basemap <- readRDS(paste0(here(), "/data/processed//file82021d31710"))
 
 ggmap::ggmap(basemap) +
   geom_sf(data = counties_filt1, inherit.aes = FALSE,) +
@@ -191,6 +194,9 @@ We will work on creating as few of the second plot as possible. We will use a wi
 
 ```{r}
 
+rm(cnty_rds, counties_filt, counties_filt1, topo_base, roads_coarse, basemap, spp_cols,
+   closest_sites, grps_most_dispersed, john_tigger, population_finder, reed_csv)
+
 a <- pts %>% 
   split(., 1:nrow(.))%>%
            purrr::map(pts_cell) %>% 
@@ -211,8 +217,8 @@ names(out) <- paste0('row', 1:nrow(out))
 # step 1 ######################################
 # IDENTIFY ALL SINGLETON WINDOWS
 aLL <- lapply(out, length)
-singletons <- out[aLL<2] # identify ALL lone windows
-multiples <- out[aLL>=2] # we can use the inverse to find all multiples
+singletons <- out[aLL <2] # identify ALL lone windows
+multiples  <- out[aLL>=2] # we can use the inverse to find all multiples
 ##############################################
 
 # step 2 #######################################
@@ -230,37 +236,53 @@ recip_pairs[upper.tri(recip_pairs, diag = T)] <- NA
 kept_pair <- which(recip_pairs, arr=TRUE) # RECORDS TO KEEP
 pairs_remove <- recip_pairs[kept_pair[,2],]
 
-# Step 3 subset original dataset with removed points,
+rm(couplets, equivalent, equ, true_couplets)
+
+############################################
+# part 3 subset original dataset with removed points,
 kept <- paste(rownames(kept_pair), collapse = "|")
 remove <- paste(rownames(pairs_remove), collapse = "|")
 
 groups <- multiples[str_detect(names(multiples), kept, negate = T)]
 groups <- groups[str_detect(names(groups), remove, negate = T)]
 
-# step 3 #######################################
-# Identify groups which are subset of a larger one
-
-big <- outer(groups, groups, Vectorize(setequal)) == T
-big[upper.tri(big, diag = T)] <- NA
-
-shared_groups <- which(big, arr=T)
-alpha <- data.frame(shared_groups)
-alpha <- cbind(rownames(alpha), shared_groups)
-rownames(alpha) <- NULL
-colnames(alpha) <- c('target','row','col')
-alpha <- alpha %>% 
-  data.frame() %>% 
-  mutate(target = str_remove(target, '[.].*')) %>% 
-  arrange(
-    str_remove(target, 'row') %>% as.numeric()
-  )
-
-big
 # step 4 ########################################
 # identify groups with shared individuals
 
+b <- map(multiples, data.frame) %>% 
+  dplyr::bind_rows(.id = "window_id")
+colnames(b) <- c('window_id', 'target')
+b$target <- paste0('row',b$target)
+b <- b[b$window_id != b$target,]
+
+igraph_ob <- igraph::graph.data.frame(b, directed=FALSE)
+
+ident_grps <- lapply(igraph::groups(igraph::components(igraph_ob)), FUN =  data.frame)
+names(ident_grps) <- c(1:length(ident_grps))
+ident_grps <- Map(cbind, ident_grps, Group = names(ident_grps))
+ident_grps <- bind_rows(ident_grps) 
+#ident_grps$length <- lapply(multiples, length)
+ident_grps$vals <- lapply(multiples, unlist)
+ident_grps <- tibble(ident_grps)	%>%
+  rowwise() %>% 
+  mutate(members_L = length(vals))	
+
+id1 <- filter(ident_grps, Group == 1) 
+
+length(
+  setdiff(unlist(id1$vals[14]), unlist(id1$vals[2]))
+  )
+
+setdiff(unlist(id1$vals[2]), unlist(id1$vals[14]))
+
+alpha <- unlist(id1$vals[14])
+beta <- unlist(id1$vals[2])
+setdiff(beta, alpha)
+
+crap <- Reduce(unique, list(id1$vals[1],id1$vals[2],id1$vals[3]))
 
 
+plot(igraph_ob)
 ```
 
 ```{r}
@@ -329,4 +351,39 @@ base <- ggplot() +
 ```
 
 
+```{r}
+# step 3 #######################################
+# Identify identical groups with >2 members
+
+ident_grps <- outer(groups, groups, Vectorize(setequal)) == T
+
+shared_groups <- which(ident_grps, arr=T)
+#alpha <- data.frame(shared_groups)
+shared_groups <- data.frame(cbind(rownames(shared_groups), shared_groups))
+rownames(shared_groups) <- NULL
+colnames(shared_groups) <- c('target','row','col')
+shared_groups <- shared_groups %>% 
+  data.frame() %>% 
+  mutate(target = str_remove(target, '[.].*')) %>% 
+  arrange(
+    str_remove(target, 'row') %>% as.numeric()
+  )
+
+shared_groups$match <-colnames(ident_grps)[as.numeric(shared_groups$col)]
+unrepo <- shared_groups[shared_groups$target != shared_groups$match,c(1,4)]
+
+igraph_ob <- igraph::graph.data.frame(unrepo, directed=FALSE)
+ident_grps <- lapply(igraph::groups(igraph::components(igraph_ob)), FUN =  data.frame)
+plot(igraph_ob)
+names(ident_grps) <- c(1:length(ident_grps))
+ident_grps <- Map(cbind, ident_grps, Group = names(ident_grps))
+ident_grps <- bind_rows(ident_grps) 
+names(ident_grps) <- c('Individual', 'Groups')
+
+ident_grps %>% 
+  add_count(Groups) %>% 
+  filter(n > 2)
+
+rm(ident, igraph_ob, ident_grps)
+```
 
