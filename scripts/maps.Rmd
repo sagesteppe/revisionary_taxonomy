@@ -195,19 +195,15 @@ We will work on creating as few of the second plot as possible. We will use a wi
 ```{r}
 
 rm(cnty_rds, counties_filt, counties_filt1, topo_base, roads_coarse, basemap, spp_cols,
-   closest_sites, grps_most_dispersed, john_tigger, population_finder, reed_csv)
+   closest_sites, grps_most_dispersed, john_tigger, population_finder, reed_csv, bb1, rds_coarse, target_taxon_grp_fndr)
 
-a <- pts %>% 
+out <- pts %>% 
   split(., 1:nrow(.))%>%
            purrr::map(pts_cell) %>% 
   bind_rows() %>% 
   st_as_sf() %>% 
-  mutate(rownum = 1:nrow(.), .before = x)
-
-ggplot(a) +
-  geom_sf()
-
-out <- st_intersects(a, pts)
+  mutate(rownum = 1:nrow(.), .before = x) %>% 
+  st_intersects(., pts)
 
 # working on getting function together...
 
@@ -256,37 +252,53 @@ b$target <- paste0('row',b$target)
 b <- b[b$window_id != b$target,]
 
 igraph_ob <- igraph::graph.data.frame(b, directed=FALSE)
+ident_grps <- lapply(igraph::groups(igraph::components(igraph_ob)),
+                     FUN =  data.frame)
 
-ident_grps <- lapply(igraph::groups(igraph::components(igraph_ob)), FUN =  data.frame)
 names(ident_grps) <- c(1:length(ident_grps))
 ident_grps <- Map(cbind, ident_grps, Group = names(ident_grps))
 ident_grps <- bind_rows(ident_grps) 
-#ident_grps$length <- lapply(multiples, length)
 ident_grps$vals <- lapply(multiples, unlist)
 ident_grps <- tibble(ident_grps)	%>%
   rowwise() %>% 
-  mutate(members_L = length(vals))	
+  mutate(members_L = length(vals))	%>% 
+  ungroup()
 
+# find the window with the most points in it 
+# and search for the most dissimilar sites below...
+
+colnames(ident_grps)[1] <- "newname2"
 id1 <- filter(ident_grps, Group == 1) 
+longest <- id1 %>% 
+  slice_max(members_L, n =  1, with_ties = F) 
 
-length(
-  setdiff(unlist(id1$vals[14]), unlist(id1$vals[2]))
-  )
+ # with this code we can find the values missing from the longest sequence
+vect <- sort(unique(c(unlist(id1$vals))))
+func <- function(x){setdiff(vect, unlist(x))}
+missing_vals <- func(longest$vals)
 
-setdiff(unlist(id1$vals[2]), unlist(id1$vals[14]))
+# with this we test how many of the missing values 
+# are contained in each of the other windows. 
+my_intersect <- function(x){
+  
+  res <- intersect(unlist(x$vals),missing_vals) 
+  res <- ifelse(res == missing_vals, 1, 0)
+  res <- sum(res/length(res))
+  return(res)
+}
 
-alpha <- unlist(id1$vals[14])
-beta <- unlist(id1$vals[2])
-setdiff(beta, alpha)
+prop_rmn_cptr <- apply(id1, 1, my_intersect)
 
-crap <- Reduce(unique, list(id1$vals[1],id1$vals[2],id1$vals[3]))
+cbind(id1, prop_rmn_cptr)
 
 
-plot(igraph_ob)
+
+
+
 ```
 
 ```{r}
-outer1
+
 ```
 
 ## create more basemaps
