@@ -208,7 +208,7 @@ out <- pts %>%
   st_intersects(., pts)
 
 
-AB <- window_search2(out)  # ident_grp = 64, groups = 66
+AB <- window_search(out)  # ident_grp = 64, groups = 66
 k <- gsub('row', '',names(AB))
 keepers <- pts[k,]
 
