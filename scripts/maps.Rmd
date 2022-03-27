@@ -221,6 +221,9 @@ polys1 <- keepers %>%
   st_as_sf() %>% 
   mutate(POLY_ID = 1:nrow(.))
 
+
+############ THIS ALL NEEDS TO BE TURNED INTO A FUNCTION 
+
 pts <- pts %>% mutate(PL_ID = 1:nrow(.))
 out <- st_intersection(pts, polys1)
 
@@ -229,7 +232,6 @@ tp <- out %>%
   group_by(PL_ID) %>% 
   tally() %>% 
   filter(n >1)
-
 
   # 1 - Intersect all points to the remaining cells. 
   # 2 - determine which points are present in multiple windows
@@ -245,22 +247,27 @@ new_polys <-st_join(polys1, tp, left = F) %>%
 pt_grps <- st_intersection(pts, new_polys) %>% 
   group_by(CAST_ID) 
 
-babadook <- split(pt_grps, ~CAST_ID)
-
-
 center_windows <- function(x){
   
   output <- x %>% 
     st_as_sf() %>% 
     st_union() %>% 
-    st_cast('MULTIPOINT') %>% 
-    st_centroid()
+    st_convex_hull() %>% 
+    st_transform(32613) %>% 
+    st_buffer(1) %>% 
+    st_cast('POLYGON') %>% 
+    st_centroid() %>% 
+    st_as_sf()
   
   return(output)
 }
 
+babadook <- split(pt_grps, ~CAST_ID)
 new_centers <- lapply(lapply(babadook, center_windows), pts_cell) %>% bind_rows()
 
+test <- lapply(babadook, center_windows) %>% bind_rows()
+colnames(test) <- 'geometry'
+sf <- test %>% st_as_sf(sf_column_name = geometry)
 
 # let us see about doing the following to these results:
   # 1 - Intersect all points to the remaining cells. 
@@ -272,7 +279,7 @@ new_centers <- lapply(lapply(babadook, center_windows), pts_cell) %>% bind_rows(
 
 ggplot() +
   geom_sf(data = new_centers, alpha = 0.2, fill = 'red') +
-  geom_sf(data = tp) +
+  geom_sf(data = pts) +
   theme_bw()
 
 ```
