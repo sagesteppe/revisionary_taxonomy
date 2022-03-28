@@ -310,11 +310,19 @@ pts_cell <- function(x, utmzone, buf_dist, out_crs) {
 }
 
 
-#################################
-###      WINDOW_SEARCH       ####
+###################################
+###        WINDOW_SEARCH       ####
 #################################
 
 window_search <- function(x){
+  
+  # The purpose of this function is to evaluate the buffered
+  # 'windows'/panes/pixels which come from the 'pts_cell' function 
+  # and try to minimize the number of windows required to fit around
+  # all points.
+  
+  # as input it requires the output of an intersection between the output
+  # of pts_cell and the original points which were fed into the pts_cell func.
   
   names(x) <- paste0('row', 1:nrow(x))
   
@@ -348,7 +356,6 @@ window_search <- function(x){
   
   ############################################
   # part 3 subset original data set with removed points,
-  
   kept <- paste(kept_pairs$window, collapse = "|")
   remove <- paste(pairs_remove$window, collapse = "|")
   
@@ -357,7 +364,6 @@ window_search <- function(x){
   
   # step 4 ########################################
   # identify groups with shared individuals
-  
   b <- map(groups, data.frame) %>% 
     dplyr::bind_rows(.id = "window_id")
   colnames(b) <- c('window_id', 'target')
@@ -389,7 +395,6 @@ window_search <- function(x){
   
   # find the window with the most points in it 
   # and search for the most dissimilar sites below...
-  
   colnames(ident_grps)[1] <- "rownum"
   network_grps <- split(ident_grps, ident_grps$Group)  
   
@@ -441,3 +446,69 @@ window_search <- function(x){
   
 }
   
+
+
+####################################
+###        WINDOW CENTER         ###
+####################################
+
+window_center <- function(x, y){
+  
+  # this function is an immediate followup function for window search.
+  # it deals with edge cases of pt dense areas which have redundant windows
+  # left over from the above function. It required two inputs:
+  
+  # x = the original points we want to place in 'windows'/pane/pixels
+  # y = the output from a second iteration run of pts_cell - the run which 
+  # took the output of 'window_search'.
+  
+  pts <- x %>% mutate(PL_ID = 1:nrow(.))
+  out <- st_intersection(x, y)
+  
+  tp <- out %>% 
+    ungroup() %>% 
+    group_by(PL_ID) %>% 
+    tally() %>% 
+    filter(n >1)
+  
+  # 1 - Intersect all points to the remaining cells. 
+  # 2 - determine which points are present in multiple windows
+  # 3 - if a cell does NOT contain any novel points - drop it
+  
+  new_polys <-st_join(y, tp, left = F) %>% 
+    distinct(POLY_ID, .keep_all = T) %>% 
+    st_union() %>% 
+    st_cast("POLYGON") %>% 
+    st_as_sf() %>% 
+    mutate(CAST_ID = 1:nrow(.))
+  
+  pt_grps <- st_intersection(x, y) %>% 
+    group_by(CAST_ID) 
+  
+  center_windows <- function(x){
+    
+    # this function does most the lifting of the centering.
+    
+    output <- x %>% 
+      st_as_sf() %>% 
+      st_union() %>% 
+      st_convex_hull() %>% 
+      st_transform(32613) %>% 
+      st_buffer(1) %>% 
+      st_cast('POLYGON') %>% 
+      st_centroid() %>% 
+      st_as_sf()
+    
+    return(output)
+  }
+  
+  babadook <- split(pt_grps, ~ CAST_ID)  # MAKE THIS ACCEPT A NAMED COLUMN ... ?
+  new_centers <- lapply(lapply(babadook, center_windows), pts_cell) %>% 
+    bind_rows()
+  
+  test <- lapply(babadook, center_windows) %>% bind_rows()
+  colnames(test) <- 'geometry'
+  sf <- test %>% st_as_sf(sf_column_name = geometry)
+  
+}
+
