@@ -193,10 +193,8 @@ We will work on creating as few of the second plot as possible. We will use a wi
 
 
 ```{r}
-
-rm(cnty_rds, counties_filt, counties_filt1, topo_base, roads_coarse, basemap, spp_cols,
+rm(cnty_rds, counties_filt, counties_filt1, topo_base, basemap, spp_cols,
    closest_sites, grps_most_dispersed, john_tigger, population_finder, reed_csv, bb1, rds_coarse, target_taxon_grp_fndr)
-
 
 # raw data
 out <- pts %>% 
@@ -207,13 +205,11 @@ out <- pts %>%
   mutate(rownum = 1:nrow(.), .before = x) %>% 
   st_intersects(., pts)
 
-
 AB <- window_search(out)  # ident_grp = 64, groups = 66
 k <- gsub('row', '',names(AB))
 keepers <- pts[k,]
 
 # first iteration
-
 polys1 <- keepers %>% 
   split(., 1:nrow(.))%>%
            purrr::map(pts_cell) %>% 
@@ -221,11 +217,11 @@ polys1 <- keepers %>%
   st_as_sf() %>% 
   mutate(POLY_ID = 1:nrow(.))
 
-
-testput <- window_center(x = pts, y= polys1) %>% st_as_sf()
+testput <- window_center(x = pts, y = polys1) %>% 
+  st_as_sf()
 
 ggplot() +
-  geom_sf(data = polys1) +
+  #geom_sf(data = polys1) +
   geom_sf(data = testput, alpha = 0.2, fill = 'red') +
   geom_sf(data = pts) +
   theme_bw()

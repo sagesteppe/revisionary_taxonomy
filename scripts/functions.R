@@ -468,7 +468,7 @@ window_center <- function(x, y){
     ungroup() %>% 
     group_by(PL_ID) %>% 
     tally() %>% 
-    filter(n >1)
+    filter(n > 1) 
   
   # 1 - Intersect all points to the remaining cells. 
   # 2 - determine which points are present in multiple windows
@@ -479,13 +479,16 @@ window_center <- function(x, y){
     st_union() %>% 
     st_cast("POLYGON") %>% 
     st_as_sf() %>% 
-    mutate(CAST_ID = 1:nrow(.))
+    mutate(CAST_ID = 1:nrow(.)) 
+  old_polys <-st_join(y, tp, left = F) %>% 
+    distinct(POLY_ID, .keep_all = T) %>% 
+    st_drop_geometry() %>% 
+    pull(POLY_ID)
   
   pt_grps <- st_intersection(x, new_polys) %>% 
     group_by(CAST_ID) 
   
   center_windows <- function(x){
-    
     # this function does most the lifting of the centering.
     
     output <- x %>% 
@@ -501,21 +504,20 @@ window_center <- function(x, y){
     return(output)
   }
   
-  babadook <- split(pt_grps, ~ CAST_ID)  # MAKE THIS ACCEPT A NAMED COLUMN ... ?
-  new_centers <- lapply(lapply(babadook, center_windows), pts_cell) %>% 
+  cluster2center <- split(pt_grps, ~ CAST_ID) 
+  new_centers <- lapply(lapply(cluster2center, center_windows), pts_cell) %>% 
     bind_rows()
   
-  test <- lapply(babadook, center_windows) %>% bind_rows()
-  colnames(test) <- 'geometry'
-  st_geometry(test) <- "geometry"
-  sf <- test %>% 
-    st_as_sf(sf_column_name = geometry) %>% 
-    split(., 1:nrow(.))%>%
-    purrr::map(pts_cell) %>% 
-    bind_rows() %>% 
-    st_as_sf()
+  # Now we remove these polygons from our input polygon data set .
   
-  return(sf)
+  remaining_original <- y %>% filter(!POLY_ID %in% old_polys) %>% 
+    dplyr::select(-POLY_ID) %>% 
+    bind_rows(new_centers)
+  colnames(remaining_original) <- 'geometry'
+  st_geometry(remaining_original)  <- 'geometry'
+  
+ # return(testiFY)
+ return(remaining_original)
   
 }
 
