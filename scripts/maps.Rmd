@@ -222,63 +222,11 @@ polys1 <- keepers %>%
   mutate(POLY_ID = 1:nrow(.))
 
 
-############ THIS ALL NEEDS TO BE TURNED INTO A FUNCTION 
-
-pts <- pts %>% mutate(PL_ID = 1:nrow(.))
-out <- st_intersection(pts, polys1)
-
-tp <- out %>% 
-  ungroup() %>% 
-  group_by(PL_ID) %>% 
-  tally() %>% 
-  filter(n >1)
-
-  # 1 - Intersect all points to the remaining cells. 
-  # 2 - determine which points are present in multiple windows
-  # 3 - if a cell does NOT contain any novel points - drop it
-
-new_polys <-st_join(polys1, tp, left = F) %>% 
-  distinct(POLY_ID, .keep_all = T) %>% 
-  st_union() %>% 
-  st_cast("POLYGON") %>% 
-  st_as_sf() %>% 
-  mutate(CAST_ID = 1:nrow(.))
-
-pt_grps <- st_intersection(pts, new_polys) %>% 
-  group_by(CAST_ID) 
-
-center_windows <- function(x){
-  
-  output <- x %>% 
-    st_as_sf() %>% 
-    st_union() %>% 
-    st_convex_hull() %>% 
-    st_transform(32613) %>% 
-    st_buffer(1) %>% 
-    st_cast('POLYGON') %>% 
-    st_centroid() %>% 
-    st_as_sf()
-  
-  return(output)
-}
-
-babadook <- split(pt_grps, ~CAST_ID)
-new_centers <- lapply(lapply(babadook, center_windows), pts_cell) %>% bind_rows()
-
-test <- lapply(babadook, center_windows) %>% bind_rows()
-colnames(test) <- 'geometry'
-sf <- test %>% st_as_sf(sf_column_name = geometry)
-
-# let us see about doing the following to these results:
-  # 1 - Intersect all points to the remaining cells. 
-  # 2 - determine which points are present in multiple windows
-  # 3 - if a cell does NOT contain any novel points - drop it
-  # 4 - union all points per cell
-  # 5 - take the centroid of the unioned points
-  # 6 - buffer from there
+testput <- window_center(x = pts, y= polys1) %>% st_as_sf()
 
 ggplot() +
-  geom_sf(data = new_centers, alpha = 0.2, fill = 'red') +
+  geom_sf(data = polys1) +
+  geom_sf(data = testput, alpha = 0.2, fill = 'red') +
   geom_sf(data = pts) +
   theme_bw()
 

@@ -309,7 +309,6 @@ pts_cell <- function(x, utmzone, buf_dist, out_crs) {
   
 }
 
-
 ###################################
 ###        WINDOW_SEARCH       ####
 #################################
@@ -463,7 +462,7 @@ window_center <- function(x, y){
   # took the output of 'window_search'.
   
   pts <- x %>% mutate(PL_ID = 1:nrow(.))
-  out <- st_intersection(x, y)
+  out <- st_intersection(pts, y)
   
   tp <- out %>% 
     ungroup() %>% 
@@ -482,7 +481,7 @@ window_center <- function(x, y){
     st_as_sf() %>% 
     mutate(CAST_ID = 1:nrow(.))
   
-  pt_grps <- st_intersection(x, y) %>% 
+  pt_grps <- st_intersection(x, new_polys) %>% 
     group_by(CAST_ID) 
   
   center_windows <- function(x){
@@ -508,7 +507,15 @@ window_center <- function(x, y){
   
   test <- lapply(babadook, center_windows) %>% bind_rows()
   colnames(test) <- 'geometry'
-  sf <- test %>% st_as_sf(sf_column_name = geometry)
+  st_geometry(test) <- "geometry"
+  sf <- test %>% 
+    st_as_sf(sf_column_name = geometry) %>% 
+    split(., 1:nrow(.))%>%
+    purrr::map(pts_cell) %>% 
+    bind_rows() %>% 
+    st_as_sf()
+  
+  return(sf)
   
 }
 
