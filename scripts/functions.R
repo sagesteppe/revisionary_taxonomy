@@ -298,9 +298,9 @@ pts_cell <- function(x, utmzone, buf_dist, out_crs) {
   
   buffered <- x %>% 
     st_as_sf() %>% 
-    st_transform(32613) %>% 
-    st_buffer(14000) %>% 
-    st_transform(4269) %>% 
+    st_transform(utmzone) %>% 
+    st_buffer(buf_dist) %>% 
+    st_transform(out_crs) %>% 
     st_bbox() %>% 
     st_as_sfc() %>% 
     st_as_sf()
@@ -505,7 +505,12 @@ window_center <- function(x, y){
   }
   
   cluster2center <- split(pt_grps, ~ CAST_ID) 
-  new_centers <- lapply(lapply(cluster2center, center_windows), pts_cell) %>% 
+  new_centers <- lapply(lapply(cluster2center, center_windows), pts_cell, 
+                        # arguments to pts cell are here
+                        utmzone = 32613, 
+                        buf_dist = 16000, 
+                        out_crs = 4269
+                        ) %>% 
     bind_rows()
   
   # Now we remove these polygons from our input polygon data set .

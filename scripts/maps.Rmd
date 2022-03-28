@@ -199,20 +199,27 @@ rm(cnty_rds, counties_filt, counties_filt1, topo_base, basemap, spp_cols,
 # raw data
 out <- pts %>% 
   split(., 1:nrow(.))%>%
-           purrr::map(pts_cell) %>% 
+           purrr::map(pts_cell, 
+                      utmzone = 32613, 
+                      buf_dist = 14000, 
+                      out_crs = 4269
+                      ) %>% 
   bind_rows() %>% 
   st_as_sf() %>% 
   mutate(rownum = 1:nrow(.), .before = x) %>% 
   st_intersects(., pts)
 
-AB <- window_search(out)  # ident_grp = 64, groups = 66
+AB <- window_search(out)  # ident_grp = 64, groups = 66 
 k <- gsub('row', '',names(AB))
 keepers <- pts[k,]
 
 # first iteration
 polys1 <- keepers %>% 
   split(., 1:nrow(.))%>%
-           purrr::map(pts_cell) %>% 
+           purrr::map(pts_cell,
+                      utmzone = 32613, 
+                      buf_dist = 16000, 
+                      out_crs = 4269) %>% 
   bind_rows() %>% 
   st_as_sf() %>% 
   mutate(POLY_ID = 1:nrow(.))
@@ -220,33 +227,86 @@ polys1 <- keepers %>%
 testput <- window_center(x = pts, y = polys1) %>% 
   st_as_sf()
 
+# Now collect points which just narrowly missed being included in windows
+outr <- st_within(pts, testput) 
+outr <- unlist(
+  lapply(
+    as.numeric(outr) == 0, as.numeric
+    )
+  )
+
+pts1 <- pts[is.na(outr),]
+out1 <- pts1 %>% 
+  split(., 1:nrow(.)) %>%
+           purrr::map(pts_cell, 
+                      utmzone = 32613, 
+                      buf_dist = 16000, 
+                      out_crs = 4269
+                      ) %>% 
+  bind_rows() %>% 
+  st_as_sf()
+
+colnames(out1) <- 'geometry'
+st_geometry(out1)  <- 'geometry'
+  
+windows <- rbind(testput, out1) %>% mutate(windowID = 1:nrow(.))
+  
 ggplot() +
-  #geom_sf(data = polys1) +
-  geom_sf(data = testput, alpha = 0.2, fill = 'red') +
+  geom_sf(data = windows) +
   geom_sf(data = pts) +
   theme_bw()
 
+rm(AB, keepers, out, out1, polys1, pts1, testput, outr, k, pts_cell, window_center, window_search)
 ```
+
+```{r When overlap exists determine which window a point should be placed in}
+testy_d <- st_distance(pts, windows %>% 
+  st_centroid())
+
+pts <- cbind(pts, 
+                'window' = apply(testy_d, 1, which.min)
+             )
+
+ggplot(pts) +
+  geom_sf(data = windows) +
+  geom_sf(aes(colour = window)) +
+  theme_bw()
+
+rm(testy_d)
+```
+
+## Download and Save Imagery for each 'Window'
+
 
 ```{r}
 
+wndws_basemap_dl <- function(x){
+  
+  gg_bb <- st_bbox(x)
+  names(gg_bb) <- c('left', 'bottom', 'right', 'top')
+  gg_bm <- ggmap::get_stamenmap(gg_bb, 
+                                zoom = 14, maptype = "terrain")
+  
+  window_basemap <- tempfile(tmpdir = paste0(
+    here(), '/data/basemap_imagery/window_bm', x$windowID))
+  saveRDS(gg_bm, file = window_basemap)
+  
+  Sys.sleep(3) # three seconds 
+}
+
+windowsL <- split(windows, ~windowID)
+lapply(windowsL[1:2], wndws_basemap_dl)
+
 ```
 
-## create more basemaps
-
-Now we will download a basemap for each population, we will start testing them out on at a time
+## Style up and Save the overview basemap
 
 ```{r, warning = F}
 
-bb2 <- townsendia %>% filter(rcrdNmb == 761) %>% 
-  st_buffer(2000) %>% 
-  st_transform(4326) %>% 
-  st_bbox()
 
 bb3 <- bb2
 names(bb3) <- c('left', 'bottom', 'right', 'top')
 basemap_t <- ggmap::get_stamenmap(bb3, zoom = 13, maptype = "terrain")
-
 
 mapbb <- townsendia %>% filter(rcrdNmb == 761) %>% 
   st_buffer(10000) %>% 
@@ -278,55 +338,6 @@ ggmap::ggmap(basemap) +
         pad_x = unit(0.0, "in"), pad_y = unit(0.0, "in"),
         style = north_arrow_orienteering)
 
-
-
-
-
 ```
 
-
-Create a couple types of base maps for recycling throughout the process.
-```{r create some basemaps}
-base <- ggplot() +
-  geom_sf(data = montrose_buffer, fill = 'bisque2', alpha = 0.2)  +
-  geom_sf(data = montrose) +
-  theme_bw()
-```
-
-
-```{r}
-# step 3 #######################################
-# Identify identical groups with >2 members
-
-ident_grps <- outer(groups, groups, Vectorize(setequal)) == T
-
-shared_groups <- which(ident_grps, arr=T)
-#alpha <- data.frame(shared_groups)
-shared_groups <- data.frame(cbind(rownames(shared_groups), shared_groups))
-rownames(shared_groups) <- NULL
-colnames(shared_groups) <- c('target','row','col')
-shared_groups <- shared_groups %>% 
-  data.frame() %>% 
-  mutate(target = str_remove(target, '[.].*')) %>% 
-  arrange(
-    str_remove(target, 'row') %>% as.numeric()
-  )
-
-shared_groups$match <-colnames(ident_grps)[as.numeric(shared_groups$col)]
-unrepo <- shared_groups[shared_groups$target != shared_groups$match,c(1,4)]
-
-igraph_ob <- igraph::graph.data.frame(unrepo, directed=FALSE)
-ident_grps <- lapply(igraph::groups(igraph::components(igraph_ob)), FUN =  data.frame)
-plot(igraph_ob)
-names(ident_grps) <- c(1:length(ident_grps))
-ident_grps <- Map(cbind, ident_grps, Group = names(ident_grps))
-ident_grps <- bind_rows(ident_grps) 
-names(ident_grps) <- c('Individual', 'Groups')
-
-ident_grps %>% 
-  add_count(Groups) %>% 
-  filter(n > 2)
-
-rm(ident, igraph_ob, ident_grps)
-```
-
+## Create the itermediate size basemaps
