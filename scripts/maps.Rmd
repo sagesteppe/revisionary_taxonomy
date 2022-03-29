@@ -55,12 +55,6 @@ st_write(counties_filt, paste0(here(), '/data/processed/counties.shp'))
 counties_filt <- st_read(paste0(here(), '/data/processed/counties.shp'), 
                          quiet = T)
 counties_filt1 <- st_cast(counties_filt, 'MULTILINESTRING')
-
-ggplot(counties_filt1) +
-  geom_sf() +
-  geom_sf(data = pts, aes(color = scntfcN)) +
-  coord_sf(xlim = c(bb1[1], bb1[3]), ylim = c(bb1[2], bb1[4])) +  
-  theme_bw() 
   
 rm(bb)
 ```
@@ -131,7 +125,9 @@ spp_cols <- c(
   'slateblue4', 'deeppink4', 
   'tan2', 'thistle4')
 
-rds_coarse <- filter(cnty_rds, RTTYP %in% c('I','U','S'))
+rds_coarse <- filter(cnty_rds, RTTYP %in% c('I','U','S')) %>% 
+  group_by(FULLNAME) %>% 
+  summarize(geometry = st_union(geometry))
 
 topo_base <- ggmap::ggmap(basemap) +
   geom_sf(data = counties_filt1, lty = 3, inherit.aes = FALSE) +
@@ -277,17 +273,15 @@ rm(testy_d)
 
 ## Download and Save Imagery for each 'Window'
 
-
 ```{r}
 
 wndws_basemap_dl <- function(x){
   
   gg_bb <- st_bbox(x)
   names(gg_bb) <- c('left', 'bottom', 'right', 'top')
-  gg_bm <- ggmap::get_stamenmap(gg_bb, 
-                                zoom = 14, maptype = "terrain")
+  gg_bm <- ggmap::get_stamenmap(gg_bb, zoom = 13, maptype = "terrain")
   
-  window_basemap <- tempfile(tmpdir = paste0(
+  window_basemap <- paste0(tmpdir = paste0(
     here(), '/data/basemap_imagery/window_bm', x$windowID))
   saveRDS(gg_bm, file = window_basemap)
   
@@ -295,9 +289,34 @@ wndws_basemap_dl <- function(x){
 }
 
 windowsL <- split(windows, ~windowID)
-lapply(windowsL[1:2], wndws_basemap_dl)
+lapply(windowsL[3:39], wndws_basemap_dl)
+
+windows_basemap <- paste0(paste0(here(), '/data/basemap_imagery/'),
+                          list.files(paste0(here(), '/data/basemap_imagery')
+                                     ))
+B <- readRDS(windows_basemap[22])
+
+
+# let us see if we can set this up so that we take the centroid of the rds coarse per window????
+ggmap::ggmap(B) +
+  geom_sf(data = cnty_rds,  inherit.aes = FALSE, colour = 'grey40') +
+  geom_sf(data = rds_coarse, inherit.aes = F, colour = 'grey20') +
+  geom_sf_label(data = rds_coarse, aes(label = FULLNAME), inherit.aes = FALSE) +
+  geom_sf(data = pts, aes(color = scntfcN), inherit.aes = FALSE, size = 5) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.7, hjust=0.5),
+        axis.text.y = element_text(angle = 45, vjust = 0.7, hjust=0.5),
+        legend.position = "none") +
+  xlab(NULL) +
+  ylab(NULL)
 
 ```
+
+## download and save imagery for each 'group'
+
+```{r}
+
+```
+
 
 ## Style up and Save the overview basemap
 
