@@ -279,7 +279,7 @@ rm(testy_d)
 
 ```{r Render a basemap with each intermediate window drawn on as an inset, eval = F}
 
-#coarse_bm <- 
+coarse_bm <- 
   ggmap::ggmap(basemap) +
   geom_sf(data = counties_filt1, lty = 3, inherit.aes = FALSE) +
   geom_sf(data = rds_coarse, inherit.aes = F, colour = 'grey20') +
@@ -320,7 +320,7 @@ coarse_mp_drwr <- function(x){
 
 windowsL <- split(windows, ~windowID)
 lapply(windowsL, coarse_mp_drwr)
-
+rm(coarse_mp_drwr)
 ```
 
 ## Download and Save Imagery for each 'Window'
@@ -342,31 +342,52 @@ wndws_basemap_dl <- function(x){
 
 windowsL <- split(windows, ~windowID)
 lapply(windowsL[3:39], wndws_basemap_dl)
+
+rm(wndws_basemap_dl, windowsL)
 ```
-
-
 
 
 ## Download and Save Imagery for each 'Group'
 
-
 ```{r download and save imagery for each window, eval = F}
 
-wndws_basemap_dl <- function(x){
+pts <- pts %>% mutate(PL_ID = 1:nrow(.)) %>% 
+  st_transform(4326)
+
+grps_basemap_dl <- function(x){
   
   gg_bb <- st_bbox(x)
   names(gg_bb) <- c('left', 'bottom', 'right', 'top')
-  gg_bm <- ggmap::get_stamenmap(gg_bb, zoom = 16, maptype = "terrain")
+  gg_bm <- ggmap::get_stamenmap(gg_bb, zoom = 15, maptype = "terrain")
   
   window_basemap <- paste0(tmpdir = paste0(
-    here(), '/data/basemap_imagery/group_bm', x$windowID))
+    here(), '/data/basemap_imagery/group_bm', x$PL_ID))
   saveRDS(gg_bm, file = window_basemap)
   
   Sys.sleep(3) # three seconds 
 }
 
-windowsL <- split(windows, ~windowID)
-lapply(windowsL[3:39], wndws_basemap_dl)
+groupsL <- split(pts, ~PL_ID)
+lapply(groupsL[1], grps_basemap_dl)
+
+
+windows_basemap <- paste0(paste0(here(), '/data/basemap_imagery/'),
+                          list.files(paste0(here(), '/data/basemap_imagery')
+                                     ))
+group_bm <- windows_basemap[str_detect(windows_basemap, 'group')]
+BB <- readRDS(group_bm[1])
+
+ggmap::ggmap(BB) +
+  geom_sf(data = cnty_rds,  inherit.aes = FALSE, colour = 'grey40') +
+  geom_sf(data = rds_coarse, inherit.aes = F, colour = 'grey20') +
+  geom_sf_label(data = rds_coarse, aes(label = FULLNAME), colour = "grey10", inherit.aes = FALSE) +
+  geom_sf_label(data = co_places, aes(label = NAME),inherit.aes = F, colour = "grey10") +
+  geom_sf(data = pts, aes(color = scntfcN), inherit.aes = FALSE, size = 5) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.7, hjust=0.5),
+        axis.text.y = element_text(angle = 45, vjust = 0.7, hjust=0.5),
+        legend.position = "none") +
+  xlab(NULL) +
+  ylab(NULL) 
 ```
 
 
@@ -381,19 +402,14 @@ lapply(windowsL[3:39], wndws_basemap_dl)
 co_places <- places(state = 'Colorado') 
 co_places <- st_centroid(co_places)
 
-ggplot(co_places) +
-  geom_sf()
-
 windows_basemap <- paste0(paste0(here(), '/data/basemap_imagery/'),
                           list.files(paste0(here(), '/data/basemap_imagery')
                                      ))
-
 coarse_bm <- windows_basemap[str_detect(windows_basemap, 'coarse')]
 BB <- readRDS(coarse_bm[1])
 
-
 intermediate_bm <- windows_basemap[str_detect(windows_basemap, 'window')]
-B <- readRDS(windows_basemap[39])
+B <- readRDS(windows_basemap[29])
 
 
 # let us see if we can set this up so that we take the centroid of the rds coarse per window????
@@ -417,7 +433,6 @@ ggmap::ggmap(B) +
       pad_x = unit(0.0, "in"), pad_y = unit(0.0, "in"),
       style = north_arrow_orienteering)
 
-
 ```
 
 ## download and save imagery for each 'group'
@@ -425,47 +440,3 @@ ggmap::ggmap(B) +
 ```{r}
 
 ```
-
-
-## Style up and Save the overview basemap
-
-```{r, warning = F}
-
-
-bb3 <- bb2
-names(bb3) <- c('left', 'bottom', 'right', 'top')
-basemap_t <- ggmap::get_stamenmap(bb3, zoom = 13, maptype = "terrain")
-
-mapbb <- townsendia %>% filter(rcrdNmb == 761) %>% 
-  st_buffer(10000) %>% 
-  st_transform(4326) %>% 
-  st_bbox() %>% 
-  st_as_sfc() %>% 
-  st_as_sf()
-
-
-ggmap::ggmap(basemap) +
-  geom_sf(data = counties_filt1, lty = 3, inherit.aes = FALSE) +
-  geom_sf(data = rds_coarse, inherit.aes = F, colour = 'grey20') +
-  geom_sf(data = pts, aes(color = scntfcN), inherit.aes = FALSE) +
-  geom_sf(data = mapbb, fill = NA, color = "red", size = 1.0, inherit.aes = F) +
-  scale_color_manual(values= spp_cols)+
-  coord_sf(xlim = c(bb1[1], bb1[3]), ylim = c(bb1[2], bb1[4])) +  
-  labs(title="Sampled Populations",  x ="", y = "", color = 'Species') +
-  theme_bw() +
-  theme(axis.text.x=element_blank(),
-        axis.text.y = element_blank(),
-        plot.title = element_text(hjust = 0.5),
-        legend.position="bottom",
-        legend.direction = "horizontal",
-        panel.border = element_rect(colour = "black", fill=NA),
-        legend.background = element_rect(linetype = 2, size = 0.5, colour = 1)) +
-  annotation_scale(location = "bl", width_hint = 0.4) +
-    annotation_north_arrow(location = "tl", which_north = "true", 
-        height = unit(0.8, "cm"),  width = unit(0.6, "cm"),
-        pad_x = unit(0.0, "in"), pad_y = unit(0.0, "in"),
-        style = north_arrow_orienteering)
-
-```
-
-## Create the itermediate size basemaps
