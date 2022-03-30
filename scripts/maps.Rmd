@@ -275,6 +275,36 @@ rm(testy_d)
 
 # Create Maps
 
+
+```{r, eval = F}
+cnty_rds <- st_read(paste0(here(), '/data/processed/roads.shp'), quiet =T)
+
+site_adj_roads <- pts %>% 
+  st_transform(32613) %>% 
+  st_buffer(15000) %>% 
+  st_union() %>% 
+  st_as_sf() %>% 
+  st_transform(4269) %>% 
+  st_intersection(., cnty_rds)
+
+
+colnames(site_adj_roads)[6] <- 'geometry'
+st_geometry(site_adj_roads)  <- 'geometry'
+site_adj_roads <- site_adj_roads %>% 
+  group_by(FULLNAME) %>% 
+  summarize(geometry = st_union(geometry))
+
+st_write(site_adj_roads, paste0(here(), '/data/processed/site_adj_rds_union.shp'), quiet =T)
+
+site_adj_roads <- rmapshaper::ms_simplify(site_adj_roads, keep = 0.5)
+```
+
+```{r}
+site_adj_roads <- st_read(paste0(here(), '/data/processed/site_adj_rds_union.shp'), quiet =T)
+site_adj_roads <- rmapshaper::ms_simplify(site_adj_roads, keep = 0.3)
+```
+
+
 ## Basemap drawing
 
 ```{r Render a basemap with each intermediate window drawn on as an inset, eval = F}
@@ -356,9 +386,13 @@ pts <- pts %>% mutate(PL_ID = 1:nrow(.)) %>%
 
 grps_basemap_dl <- function(x){
   
-  gg_bb <- st_bbox(x)
+  gg_bb <- x %>% 
+    st_transform(32613) %>% 
+    st_buffer(2400) %>% 
+    st_transform(4326) %>% 
+    st_bbox()
   names(gg_bb) <- c('left', 'bottom', 'right', 'top')
-  gg_bm <- ggmap::get_stamenmap(gg_bb, zoom = 15, maptype = "terrain")
+  gg_bm <- ggmap::get_stamenmap(gg_bb, zoom = 13, maptype = "terrain")
   
   window_basemap <- paste0(tmpdir = paste0(
     here(), '/data/basemap_imagery/group_bm', x$PL_ID))
@@ -368,26 +402,26 @@ grps_basemap_dl <- function(x){
 }
 
 groupsL <- split(pts, ~PL_ID)
-lapply(groupsL[1], grps_basemap_dl)
+lapply(groupsL, grps_basemap_dl)
 
 
 windows_basemap <- paste0(paste0(here(), '/data/basemap_imagery/'),
                           list.files(paste0(here(), '/data/basemap_imagery')
                                      ))
 group_bm <- windows_basemap[str_detect(windows_basemap, 'group')]
-BB <- readRDS(group_bm[1])
+BB <- readRDS(group_bm[39])
 
 ggmap::ggmap(BB) +
   geom_sf(data = cnty_rds,  inherit.aes = FALSE, colour = 'grey40') +
-  geom_sf(data = rds_coarse, inherit.aes = F, colour = 'grey20') +
-  geom_sf_label(data = rds_coarse, aes(label = FULLNAME), colour = "grey10", inherit.aes = FALSE) +
+  geom_sf_label(data = cnty_rds, aes(label = FULLNAME), colour = "grey10", inherit.aes = FALSE) +
   geom_sf_label(data = co_places, aes(label = NAME),inherit.aes = F, colour = "grey10") +
   geom_sf(data = pts, aes(color = scntfcN), inherit.aes = FALSE, size = 5) +
   theme(axis.text.x = element_text(angle = 45, vjust = 0.7, hjust=0.5),
         axis.text.y = element_text(angle = 45, vjust = 0.7, hjust=0.5),
         legend.position = "none") +
   xlab(NULL) +
-  ylab(NULL) 
+  ylab(NULL) +
+  annotation_scale(location = "bl", width_hint = 0.4) 
 ```
 
 
@@ -409,7 +443,7 @@ coarse_bm <- windows_basemap[str_detect(windows_basemap, 'coarse')]
 BB <- readRDS(coarse_bm[1])
 
 intermediate_bm <- windows_basemap[str_detect(windows_basemap, 'window')]
-B <- readRDS(windows_basemap[29])
+B <- readRDS(intermediate_bm[29])
 
 
 # let us see if we can set this up so that we take the centroid of the rds coarse per window????
